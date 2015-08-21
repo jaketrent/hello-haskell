@@ -1,44 +1,56 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module Main where
 
-import System.IO (readFile)
-import Data.Time (getCurrentTime)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Monoid ((<>))
+import GHC.Generics
+import Web.Scotty
 
-printTime :: IO ()
-printTime = do
-  time <- getCurrentTime
-  putStrLn (show time)
+data User = User { userId :: Int, userName :: String } deriving (Show, Generic)
 
-printConfig :: IO ()
-printConfig = do
-  contents <- readFile "stack.yaml"
-  putStrLn contents
+instance ToJSON User
+instance FromJSON User
 
-printNumbers :: IO ()
-printNumbers = do
-  putStrLn (show (3 + 4))
+bob :: User
+bob = User { userId = 1, userName = "bob" }
 
-greet :: String -> String
-greet name = "Hello " ++ name ++ "!"
+jenny :: User
+jenny = User { userId = 2, userName = "jenny" }
 
--- explicit return for primitive value
-sayHello :: IO String
-sayHello = do
-  name <- getLine
-  putStrLn ("Hello " ++ name)
-  return name
+allUsers :: [User]
+allUsers = [bob, jenny]
 
--- will always return Nothing because this is Maybe monad behavior
-beCareful :: Maybe Int
-beCareful = do
-  Just 6
-  Nothing
-  return 5
+matchesId :: Int -> User -> Bool
+matchesId id user = userId user == id -- userId is a magical generated function from User def
 
-main :: IO () -- () = unit youtube algebraic data types
+routes :: ScottyM ()
+routes = do
+  get "/hello" hello
+  get "/hello/:name" helloName
+  get "/users" users
+  get "/users/:id" usersId
+
+helloName :: ActionM ()
+helloName = do
+  name <- param "name"
+  text ("hello " <> name <> "!")
+
+hello :: ActionM ()
+hello = do
+  text "Hello, everyone"
+
+users :: ActionM ()
+users = do
+  json allUsers
+
+usersId :: ActionM ()
+usersId = do
+  id <- param "id"
+  json (filter (matchesId id) allUsers)
+
+main :: IO ()
 main = do
-  putStrLn (greet "bobby")
-  putStrLn (greet "World")
-  printNumbers
-  printConfig
-  printTime
-
+  putStrLn "Starting server..."
+  scotty 3000 routes
